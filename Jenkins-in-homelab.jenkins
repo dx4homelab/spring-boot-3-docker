@@ -1,0 +1,112 @@
+pipeline {
+    
+    agent any
+
+	stages {
+	    
+        stage('Clone project') {
+            
+            // GIT_SSL_NO_VERIFY=true git clone https://example.com/path/to/git
+            // git -c http.sslVerify=false clone https://example.com/path/to/git
+            
+            steps {
+                
+                
+                checkout changelog: false, poll: false, scm: scmGit(branches: [[name: 'main']], extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'repo']], userRemoteConfigs: [[url: 'https://github.com/dx4homelab/spring-boot-3-docker.git']])
+                
+            }
+        }
+	    
+        stage('validate token') {
+            
+            steps {
+                
+                // container(name: 'kaniko', shell: '/busybox/sh') {
+
+                container('kaniko') {
+                    
+                    sh '''
+                    
+                        DIR=\"$(pwd)/repo\"
+                        
+                        echo $DIR
+                        
+                        ls -l 
+                        
+                        cd repo && ls -l .
+                        
+                        DOCFILE=Dockerfile
+                        
+                        cat $DOCFILE
+                        
+                        CI_REGISTRY=\"registry.local.homelabsolutions.net/afsas/fips-spring-java\"
+                    
+                        CI_REGISTRY_BASE64_TOKEN=\"Z2l0bGFiX3VzZXI6TjFramVOVV9OZllidkNzY3FfdVE=\"
+                        
+                        echo '{"auths": { "registry.local.homelabsolutions.net": { "auth": "Z2l0bGFiX3VzZXI6TjFramVOVV9OZllidkNzY3FfdVE=" }}}' >/kaniko/.docker/config.json
+                        
+                        cat /kaniko/.docker/config.json
+                        
+                    '''
+    
+                }
+            }
+            
+        }
+    
+
+        stage('Build project with test execution') {
+            
+            steps {
+                
+                sh 'cd repo && chmod +x ./gradlew'
+                
+                sh 'cd repo && ./gradlew --no-daemon bootjar'
+                
+            }
+        }
+        
+        stage('Build and push image') {
+            
+            steps {
+                
+                // container(name: 'kaniko', shell: '/busybox/sh') {
+
+                container('kaniko') {
+                    
+                    // def TOK="aaaaaaa"
+                    // sh "echo $TOK"
+                    
+                    sh '''
+                    
+                        DIR=\"$(pwd)/repo\"
+                        
+                        echo $DIR
+                        
+                        ls -l 
+                        
+                        cd repo && ls -l .
+                        
+                        DOCFILE=Dockerfile
+                        
+                        cat $DOCFILE
+                    
+                        
+                        CI_REGISTRY=\"registry.local.homelabsolutions.net/afsas/fips-spring-java\"
+                    
+                        CI_REGISTRY_BASE64_TOKEN=\"Z2l0bGFiX3VzZXI6TjFramVOVV9OZllidkNzY3FfdVE=\"
+                        
+                        echo '{"auths": { "registry.local.homelabsolutions.net": { "auth": "Z2l0bGFiX3VzZXI6TjFramVOVV9OZllidkNzY3FfdVE=" }}}' >/kaniko/.docker/config.json
+                        
+                        cat /kaniko/.docker/config.json
+                        
+                        /kaniko/executor -f \"$DOCFILE\" -c . --insecure --skip-tls-verify --cache=true --destination=\"$CI_REGISTRY\"
+                        
+                    '''
+    
+                }
+            }
+            
+        }
+    }
+}
